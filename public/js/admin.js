@@ -159,7 +159,7 @@
       ["aceptadas", "Aceptadas", c.aceptadas]
     ];
     app.innerHTML = shell(pills(data.schools, state.school) +
-      '<section class="card panel"><div class="section-head"><h2>Enlaces para las familias</h2><button type="button" class="btn pri" id="openLink">Generar link</button></div><p class="muted">Elija el colegio y el formulario. La familia abre solo esa postulación.</p></section>' +
+      '<section class="card panel"><div class="section-head"><h2>Enlaces para las familias</h2><button type="button" class="btn pri" id="openLink">Generar link</button></div><p class="muted">' + (state.me.schoolSlug ? "Elija el formulario. La familia abre solo esa postulación." : "Elija el colegio y el formulario. La familia abre solo esa postulación.") + '</p></section>' +
       linkModal(data.schools) +
       '<div class="stats">' + cards.map(function (card, index) {
       return '<button class="card stat' + (index === 0 ? " on" : "") + '" data-status="' + card[0] + '"><span>' + card[1] + "</span><b>" + card[2] + "</b></button>";
