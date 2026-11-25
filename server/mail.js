@@ -25,17 +25,33 @@ export async function notifySubmitted(publicId) {
     "",
     "Revise el expediente en el panel de administración."
   ].join("\n");
-  const familyText = [
-    `${school.name} recibió la postulación ${app.reference}.`,
-    "",
-    `Estudiantes: ${students}`,
-    `Plan al que postula: ${plan}`,
-    `Año lectivo: ${app.school_year}`,
-    "",
-    "Conserve este número para cualquier consulta. La información es confidencial.",
+  const familyContact = [
     school.phone ? `Teléfono: ${school.phone}` : "",
-    school.email ? `Correo: ${school.email}` : ""
+    school.email ? `Correo electrónico: ${school.email}` : ""
   ].filter(Boolean).join("\n");
+  const familyText = [
+    "Querida familia:",
+    "",
+    `Les confirmamos que hemos recibido exitosamente su postulación al programa de Ayuda Financiera de ${school.name}. En los próximos días recibirán una respuesta sobre su proceso.`,
+    "",
+    "Agradecemos el tiempo dedicado a completar la postulación y enviar la documentación solicitada. En caso de requerir información adicional o de existir alguna novedad, nos pondremos en contacto con ustedes a través de nuestros canales oficiales de comunicación.",
+    "",
+    "Para consultar el estado de su postulación, podrán utilizar el siguiente código de referencia:",
+    "",
+    `Código de postulación: ${app.reference}`,
+    "",
+    "Les recordamos que toda la información relacionada con este proceso será tratada con estricta confidencialidad y únicamente será compartida con las personas debidamente autorizadas.",
+    "",
+    "Si tienen alguna duda o desean realizar una consulta, pueden comunicarse con nosotros a través de los siguientes canales:",
+    "",
+    familyContact,
+    "",
+    "Agradecemos su confianza en nuestra institución y la oportunidad de acompañarlos durante este proceso.",
+    "",
+    "Con cariño,",
+    "Equipo de Ayuda Financiera",
+    school.name
+  ].join("\n");
 
   const mailbox = school.email || school.notify_email;
   await deliver({
@@ -51,7 +67,7 @@ export async function notifySubmitted(publicId) {
   await deliver({
     applicationId: app.id,
     to: app.rep1_email,
-    subject: `Recibimos su postulación ${app.reference}`,
+    subject: "Confirmación de recepción de postulación – Ayuda Financiera",
     text: familyText,
     settings,
     user: mailbox,
