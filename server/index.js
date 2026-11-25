@@ -358,7 +358,10 @@ app.put("/api/admin/correo", requireAdmin, (req, res, next) => {
   try { res.json(saveMailSettings(req.body)); } catch (error) { next(error); }
 });
 
-app.get("/", (req, res) => res.sendFile(path.join(root, "public", "form.html")));
+app.get("/", (req, res) => {
+  if (!req.query.f) return res.redirect("/admin");
+  res.sendFile(path.join(root, "public", "form.html"));
+});
 app.get("/admin", (req, res) => res.sendFile(path.join(root, "public", "admin.html")));
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.use(express.static(path.join(root, "public")));
