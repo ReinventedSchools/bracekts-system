@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS schools (
   ruc VARCHAR(20) NOT NULL DEFAULT '',
   policy_url VARCHAR(500) NOT NULL DEFAULT '',
   logo_path VARCHAR(255) NOT NULL DEFAULT '',
+  mailbox_pass VARCHAR(255) NOT NULL DEFAULT '',
   active TINYINT NOT NULL DEFAULT 1,
   PRIMARY KEY (id),
   UNIQUE KEY uq_schools_slug (slug),

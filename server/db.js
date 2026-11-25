@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS schools (
   ruc TEXT NOT NULL DEFAULT '',
   policy_url TEXT NOT NULL DEFAULT '',
   logo_path TEXT NOT NULL DEFAULT '',
+  mailbox_pass TEXT NOT NULL DEFAULT '',
   active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -464,8 +465,20 @@ function seed() {
   }
 }
 
+db.exec("ALTER TABLE schools ADD COLUMN IF NOT EXISTS mailbox_pass VARCHAR(255) NOT NULL DEFAULT ''");
 db.exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS school_slug VARCHAR(40) NULL");
 seed();
+ensureMailDefaults();
+
+function ensureMailDefaults() {
+  const settings = getSettings();
+  if (!settings.smtp_host) {
+    setSetting("smtp_host", "smtp.office365.com");
+    setSetting("smtp_port", "587");
+    setSetting("smtp_secure", "0");
+  }
+  if (!settings.smtp_from_name) setSetting("smtp_from_name", "ReinventED Admisiones");
+}
 
 function familyLinks() {
   const raw = getSettings().family_links;
@@ -1405,7 +1418,11 @@ export function adminConfig() {
       `SELECT g.name, s.name AS stage FROM grades g JOIN stages s ON s.id = g.stage_id ORDER BY g.sort`
     ),
     stages: all("SELECT name FROM stages ORDER BY sort").map((row) => row.name),
-    schools: listSchools().map((school) => ({ ...publicSchool(school), notifyEmail: school.notify_email })),
+    schools: listSchools().map((school) => ({
+      ...publicSchool(school),
+      notifyEmail: school.notify_email,
+      mailboxReady: Boolean(school.mailbox_pass)
+    })),
     plans: all("SELECT code, name FROM plans ORDER BY sort"),
     prices: all(
       `SELECT s.slug AS school, st.name AS stage, p.code AS plan, pp.monthly_amount AS amount
@@ -1498,6 +1515,9 @@ export function saveSchool(slug, body) {
     String(body.policyUrl || "").slice(0, 300),
     school.id
   );
+  if (body.mailboxPassword) {
+    run("UPDATE schools SET mailbox_pass = ? WHERE id = ?", String(body.mailboxPassword), school.id);
+  }
   return adminConfig();
 }
 

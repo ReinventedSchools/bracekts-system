@@ -37,13 +37,16 @@ export async function notifySubmitted(publicId) {
     school.email ? `Correo: ${school.email}` : ""
   ].filter(Boolean).join("\n");
 
+  const mailbox = school.email || school.notify_email;
   await deliver({
     applicationId: app.id,
-    to: school.notify_email,
+    to: mailbox,
     subject: `Postulación ${app.reference} recibida`,
     text: schoolText,
     settings,
-    fromEmail: school.email
+    user: mailbox,
+    pass: school.mailbox_pass,
+    fromEmail: mailbox
   });
   await deliver({
     applicationId: app.id,
@@ -51,17 +54,19 @@ export async function notifySubmitted(publicId) {
     subject: `Recibimos su postulación ${app.reference}`,
     text: familyText,
     settings,
-    fromEmail: school.email
+    user: mailbox,
+    pass: school.mailbox_pass,
+    fromEmail: mailbox
   });
 }
 
-async function deliver({ applicationId, to, subject, text, settings, fromEmail }) {
+async function deliver({ applicationId, to, subject, text, settings, user, pass, fromEmail }) {
   if (!to) {
     writeLog(applicationId, "", subject, text, "pendiente", "Sin destinatario");
     return;
   }
-  if (!settings.host || !settings.user) {
-    writeLog(applicationId, to, subject, text, "pendiente", "SMTP sin configurar");
+  if (!settings.host || !user || !pass) {
+    writeLog(applicationId, to, subject, text, "pendiente", "Falta la contraseña del buzón");
     return;
   }
   try {
@@ -69,9 +74,10 @@ async function deliver({ applicationId, to, subject, text, settings, fromEmail }
       host: settings.host,
       port: settings.port,
       secure: settings.secure,
-      auth: { user: settings.user, pass: settings.pass }
+      requireTLS: !settings.secure,
+      auth: { user, pass }
     });
-    const from = fromEmail || settings.user;
+    const from = fromEmail || user;
     await transporter.sendMail({
       from: `"${settings.fromName}" <${from}>`,
       to,

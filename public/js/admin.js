@@ -352,8 +352,10 @@
           window.__cfg = await json("/api/admin/colegios/" + s.slug, "PUT", {
             name: val("name-" + s.slug), campus: val("campus-" + s.slug), phone: val("phone-" + s.slug),
             email: val("email-" + s.slug), notifyEmail: val("notify-" + s.slug), address: val("address-" + s.slug),
-            legalName: val("legal-" + s.slug), ruc: val("ruc-" + s.slug), policyUrl: val("policy-" + s.slug)
+            legalName: val("legal-" + s.slug), ruc: val("ruc-" + s.slug), policyUrl: val("policy-" + s.slug),
+            mailboxPassword: val("mailbox-" + s.slug)
           });
+          document.getElementById("mailbox-" + s.slug).value = "";
           flash("msg-" + s.slug, "Datos del colegio guardados.");
         } catch (error) { flash("msg-" + s.slug, error.message); }
       };
@@ -407,10 +409,9 @@
       try {
         window.__cfg = await json("/api/admin/correo", "PUT", {
           host: val("smtpHost"), port: val("smtpPort"), secure: document.getElementById("smtpSecure").checked,
-          user: val("smtpUser"), password: val("smtpPass"), fromName: val("smtpFrom")
+          fromName: val("smtpFrom")
         });
-        flash("mailMsg", "Correo guardado. La contraseña solo se reemplaza si escribe una nueva.");
-        document.getElementById("smtpPass").value = "";
+        flash("mailMsg", "Servidor de correo guardado.");
       } catch (error) { flash("mailMsg", error.message); }
     };
   }
@@ -426,7 +427,7 @@
   }
   function schoolsBlock(c) {
     return c.schools.map(function (s) {
-      return '<section class="card school-box"><h2>' + esc(s.name) + '</h2><img src="' + esc(s.logo) + '" alt="" style="height:42px;margin:8px 0"><div class="dates"><label>Nombre<input id="name-' + s.slug + '" value="' + esc(s.name) + '"></label><label>Campus<input id="campus-' + s.slug + '" value="' + esc(s.campus) + '"></label><label>Teléfono<input id="phone-' + s.slug + '" value="' + esc(s.phone) + '"></label><label>Correo de contacto<input id="email-' + s.slug + '" value="' + esc(s.email) + '"></label><label>Correo que recibe las solicitudes<input id="notify-' + s.slug + '" value="' + esc(s.notifyEmail) + '" placeholder="Se configura cuando comparta el correo"></label><label>Dirección<input id="address-' + s.slug + '" value="' + esc(s.address) + '"></label><label>Razón social<input id="legal-' + s.slug + '" value="' + esc(s.legalName) + '"></label><label>RUC<input id="ruc-' + s.slug + '" value="' + esc(s.ruc) + '"></label><label>Política de datos<input id="policy-' + s.slug + '" value="' + esc(s.policyUrl) + '"></label></div><div class="row-actions"><button class="btn pri" id="save-' + s.slug + '" type="button">Guardar colegio</button></div><p id="msg-' + s.slug + '" class="muted"></p></section>';
+      return '<section class="card school-box"><h2>' + esc(s.name) + '</h2><img src="' + esc(s.logo) + '" alt="" style="height:42px;margin:8px 0"><div class="dates"><label>Nombre<input id="name-' + s.slug + '" value="' + esc(s.name) + '"></label><label>Campus<input id="campus-' + s.slug + '" value="' + esc(s.campus) + '"></label><label>Teléfono<input id="phone-' + s.slug + '" value="' + esc(s.phone) + '"></label><label>Correo de contacto<input id="email-' + s.slug + '" value="' + esc(s.email) + '"></label><label>Correo que recibe las solicitudes<input id="notify-' + s.slug + '" value="' + esc(s.notifyEmail) + '" placeholder="Se configura cuando comparta el correo"></label><label>Dirección<input id="address-' + s.slug + '" value="' + esc(s.address) + '"></label><label>Razón social<input id="legal-' + s.slug + '" value="' + esc(s.legalName) + '"></label><label>RUC<input id="ruc-' + s.slug + '" value="' + esc(s.ruc) + '"></label><label>Política de datos<input id="policy-' + s.slug + '" value="' + esc(s.policyUrl) + '"></label><label>Contraseña del buzón<input id="mailbox-' + s.slug + '" type="password" placeholder="' + (s.mailboxReady ? "Guardada" : "Pendiente") + '" autocomplete="new-password"></label></div><div class="row-actions"><button class="btn pri" id="save-' + s.slug + '" type="button">Guardar colegio</button></div><p id="msg-' + s.slug + '" class="muted"></p></section>';
     }).join("");
   }
   function pricesBlock(c, school) {
@@ -466,7 +467,7 @@
     return '<section class="card panel"><h2>Conceptos y documentos</h2>' + block("Ingresos", "income", c.income) + block("Gastos", "expense", c.expense) + "<h3>Documentos</h3>" + docs + '<button class="btn pri" id="saveConcepts" type="button">Guardar conceptos</button><p id="conceptMsg" class="muted"></p></section>';
   }
   function mailBlock(c) {
-    return '<section class="card panel"><h2>Correo de aviso</h2><p class="note">Cuando comparta los correos de Puembo y Santa Clara, escríbalos en cada colegio. Aquí va el servidor desde el que se envían. Hasta entonces el aviso queda registrado en la solicitud como pendiente.</p><div class="dates"><label>Servidor SMTP<input id="smtpHost" value="' + esc(c.smtp.host) + '"></label><label>Puerto<input id="smtpPort" value="' + esc(c.smtp.port) + '"></label><label>Usuario<input id="smtpUser" value="' + esc(c.smtp.user) + '"></label><label>Contraseña<input id="smtpPass" type="password" placeholder="' + (c.smtp.passwordSet ? "Guardada" : "Pendiente") + '"></label><label>Nombre del remitente<input id="smtpFrom" value="' + esc(c.smtp.fromName) + '"></label></div><label class="tools"><input id="smtpSecure" type="checkbox" style="width:auto"' + (c.smtp.secure ? " checked" : "") + '> Conexión segura (SSL)</label><div><button class="btn pri" id="saveMail" type="button">Guardar correo</button></div><p id="mailMsg" class="muted"></p></section>';
+    return '<section class="card panel"><h2>Correo de aviso</h2><p class="note">Cada colegio envía desde su propio buzón y el aviso del colegio llega a ese mismo correo. La familia también recibe la confirmación desde ese buzón. La contraseña se escribe en la ficha del colegio.</p><div class="dates"><label>Servidor SMTP<input id="smtpHost" value="' + esc(c.smtp.host) + '"></label><label>Puerto<input id="smtpPort" value="' + esc(c.smtp.port) + '"></label><label>Nombre del remitente<input id="smtpFrom" value="' + esc(c.smtp.fromName) + '"></label></div><label class="tools"><input id="smtpSecure" type="checkbox" style="width:auto"' + (c.smtp.secure ? " checked" : "") + '> Conexión segura (SSL)</label><div><button class="btn pri" id="saveMail" type="button">Guardar correo</button></div><p id="mailMsg" class="muted"></p></section>';
   }
 
   window.addEventListener("hashchange", render);
