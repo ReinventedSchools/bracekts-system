@@ -200,7 +200,8 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  school_slug TEXT
 );
 CREATE TABLE IF NOT EXISTS applications (
   id INTEGER PRIMARY KEY,
@@ -463,6 +464,7 @@ function seed() {
   }
 }
 
+db.exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS school_slug VARCHAR(40) NULL");
 seed();
 
 function familyLinks() {
@@ -1321,7 +1323,8 @@ export function fileForAdmin(publicId, fileId) {
   if (!app) return null;
   const file = get("SELECT * FROM files WHERE id = ? AND application_id = ?", fileId, app.id);
   if (!file) return null;
-  return { ...file, path: safeStoredPath(file.stored_path) };
+  const school = get("SELECT slug FROM schools WHERE id = ?", app.school_id);
+  return { ...file, path: safeStoredPath(file.stored_path), schoolSlug: school ? school.slug : "" };
 }
 
 export function filesForZip(publicId) {
@@ -1330,6 +1333,7 @@ export function filesForZip(publicId) {
   const app = loadApp(publicId);
   return {
     reference: detail.reference || detail.id,
+    schoolSlug: detail.school.slug,
     files: all("SELECT * FROM files WHERE application_id = ? ORDER BY rep_slot, doc_id, id", app.id).map((file) => ({
       ...file,
       path: safeStoredPath(file.stored_path),

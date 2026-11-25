@@ -54,13 +54,15 @@
 
   function shell(inner) {
     var r = route();
-    return '<header class="top"><div><h1>Solicitudes de pensión</h1><p class="muted">ReinventED Puembo y Santa Clara</p></div><nav class="nav">' +
+    var scope = state.me.schoolSlug === "santa-clara" ? "ReinventED Santa Clara" : state.me.schoolSlug === "puembo" ? "ReinventED Puembo" : "ReinventED Puembo y Santa Clara";
+    return '<header class="top"><div><h1>Solicitudes de pensión</h1><p class="muted">' + scope + '</p></div><nav class="nav">' +
       '<a class="' + (r.name === "resumen" ? "on" : "") + '" href="#/">Resumen</a>' +
       '<a class="' + (r.name === "solicitudes" || r.name === "solicitud" ? "on" : "") + '" href="#/solicitudes">Solicitudes</a>' +
       '<a class="' + (r.name === "config" ? "on" : "") + '" href="#/config">Configuración</a>' +
       '<button type="button" id="logout">' + esc(state.me.name) + " · Salir</button></nav></header><div class=\"wrap\">" + inner + "</div>";
   }
   function pills(schools, current) {
+    if (state.me.schoolSlug || schools.length < 2) return "";
     return '<div class="pills"><button type="button" class="pill' + (!current ? " on" : "") + '" data-school="">TODO</button>' +
       schools.map(function (s) {
         return '<button type="button" class="pill' + (current === s.slug ? " on" : "") + '" data-school="' + esc(s.slug) + '" aria-label="' + esc(s.name) + '"><img src="' + esc(s.logo) + '" alt=""></button>';
@@ -80,6 +82,7 @@
   async function render() {
     var r = route();
     if (!state.me) { login(); return; }
+    if (state.me.schoolSlug) state.school = state.me.schoolSlug;
     try {
       if (r.name === "config") await configView();
       else if (r.name === "solicitud" && r.id) await detailView(r.id);
@@ -135,8 +138,8 @@
     return '<div class="modal" id="linkModal" hidden><div class="modal-back" data-close-link></div>' +
       '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="linkTitle">' +
       '<div class="modal-head"><div><p class="kicker">Admisiones</p><h2 id="linkTitle" tabindex="-1">Generar link</h2></div><button type="button" class="modal-x" data-close-link aria-label="Cerrar">×</button></div>' +
-      '<p class="modal-lead">Elija el colegio y el formulario. El enlace abre solo esa postulación.</p>' +
-      '<div class="modal-body"><p class="field-label">Colegio</p><div class="choices">' + schoolBtns + '</div>' +
+      '<p class="modal-lead">' + (schools.length < 2 ? "Elija el formulario. La familia abre solo esa postulación." : "Elija el colegio y el formulario. El enlace abre solo esa postulación.") + '</p>' +
+      '<div class="modal-body">' + (schools.length < 2 ? "" : '<p class="field-label">Colegio</p><div class="choices">' + schoolBtns + '</div>') +
       '<p class="field-label">Formulario</p><div class="choices">' +
       '<button type="button" class="choice" data-pick-variant="short"><b>Plan B</b><small>Formulario 01</small></button>' +
       '<button type="button" class="choice" data-pick-variant="full"><b>Planes C, D y E</b><small>Formulario 02</small></button></div>' +
@@ -161,7 +164,7 @@
       '<div class="stats">' + cards.map(function (card, index) {
       return '<button class="card stat' + (index === 0 ? " on" : "") + '" data-status="' + card[0] + '"><span>' + card[1] + "</span><b>" + card[2] + "</b></button>";
     }).join("") + "</div>" + '<section class="card panel"><h2>Últimas solicitudes</h2>' + table(data.recent) + "</section>");
-    var pick = { school: state.school || "", variant: "" };
+    var pick = { school: state.school || (data.schools[0] ? data.schools[0].slug : ""), variant: "" };
     var modal = document.getElementById("linkModal");
     function closeLink() {
       modal.hidden = true;

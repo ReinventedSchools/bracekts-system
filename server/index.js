@@ -21,6 +21,7 @@ import {
   fileForAdmin,
   filesForZip,
   findUser,
+  httpError,
   internalApp,
   listApplications,
   ensureFamilyLink,
@@ -70,8 +71,45 @@ app.use(
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const requireAdmin = (req, res, next) => {
   if (!req.session.user) return res.status(401).json({ error: "Inicie sesión." });
+  const user = findUser(req.session.user.email);
+  if (!user) return res.status(401).json({ error: "Inicie sesión." });
+  req.session.user = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    schoolSlug: user.school_slug || ""
+  };
   next();
 };
+
+function canSeeSchool(req, slug) {
+  const locked = req.session.user.schoolSlug || "";
+  return !locked || slug === locked;
+}
+
+function viewSchool(req) {
+  const locked = req.session.user.schoolSlug || "";
+  return locked || String(req.query.school || "");
+}
+
+function visibleSchools(req) {
+  const locked = req.session.user.schoolSlug || "";
+  return listSchools()
+    .filter((item) => !locked || item.slug === locked)
+    .map((item) => ({ slug: item.slug, name: item.name, logo: item.logo_path }));
+}
+
+function scopedConfig(req) {
+  const config = adminConfig();
+  const locked = req.session.user.schoolSlug || "";
+  if (!locked) return config;
+  return {
+    ...config,
+    schools: config.schools.filter((school) => school.slug === locked),
+    prices: config.prices.filter((row) => row.school === locked),
+    metrics: config.metrics.filter((row) => row.school === locked)
+  };
+}
 
 function storageFor(folder) {
   return multer.diskStorage({
@@ -223,8 +261,13 @@ app.post("/api/admin/login", (req, res) => {
   if (!checkPassword(user, req.body.password || "")) {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
   }
-  req.session.user = { id: user.id, name: user.name, email: user.email };
-  res.json({ name: user.name, email: user.email });
+  req.session.user = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    schoolSlug: user.school_slug || ""
+  };
+  res.json(req.session.user);
 });
 
 app.post("/api/admin/logout", (req, res) => {
@@ -236,10 +279,11 @@ app.get("/api/admin/me", requireAdmin, (req, res) => {
 });
 
 app.get("/api/admin/resumen", requireAdmin, (req, res) => {
-  const school = req.query.school || "";
+  const school = viewSchool(req);
+  const locked = req.session.user.schoolSlug || "";
   res.json({
-    schools: listSchools().map((item) => ({ slug: item.slug, name: item.name, logo: item.logo_path })),
-    links: listFamilyLinks(),
+    schools: visibleSchools(req),
+    links: listFamilyLinks().filter((link) => !locked || link.school === locked),
     counts: summary(school),
     recent: listApplications({ school, limit: 8 })
   });
@@ -248,7 +292,7 @@ app.get("/api/admin/resumen", requireAdmin, (req, res) => {
 app.get("/api/admin/solicitudes", requireAdmin, (req, res) => {
   res.json({
     items: listApplications({
-      school: req.query.school || "",
+      school: viewSchool(req),
       status: req.query.status || "",
       q: String(req.query.q || "").slice(0, 80),
       limit: req.query.limit
@@ -258,12 +302,14 @@ app.get("/api/admin/solicitudes", requireAdmin, (req, res) => {
 
 app.get("/api/admin/solicitudes/:id", requireAdmin, (req, res) => {
   const detail = applicationDetail(req.params.id);
-  if (!detail) return res.status(404).json({ error: "No encontramos la solicitud." });
+  if (!detail || !canSeeSchool(req, detail.school.slug)) return res.status(404).json({ error: "No encontramos la solicitud." });
   res.json(detail);
 });
 
 app.patch("/api/admin/solicitudes/:id", requireAdmin, (req, res, next) => {
   try {
+    const current = applicationDetail(req.params.id);
+    if (!current || !canSeeSchool(req, current.school.slug)) return res.status(404).json({ error: "No encontramos la solicitud." });
     res.json(updateAdmin(req.params.id, req.body, req.session.user.email));
   } catch (error) {
     next(error);
@@ -273,7 +319,7 @@ app.patch("/api/admin/solicitudes/:id", requireAdmin, (req, res, next) => {
 app.get("/api/admin/solicitudes/:id/pdf", requireAdmin, wrap(async (req, res) => {
   const detail = applicationDetail(req.params.id);
   const pack = filesForZip(req.params.id);
-  if (!detail || !pack) return res.status(404).json({ error: "No encontramos la solicitud." });
+  if (!detail || !pack || !canSeeSchool(req, detail.school.slug)) return res.status(404).json({ error: "No encontramos la solicitud." });
   const buffer = await buildExpediente(detail, pack.files);
   const name = `${detail.reference || detail.id}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
@@ -284,7 +330,7 @@ app.get("/api/admin/solicitudes/:id/pdf", requireAdmin, wrap(async (req, res) =>
 app.get("/api/admin/solicitudes/:id/zip", requireAdmin, (req, res, next) => {
   try {
     const pack = filesForZip(req.params.id);
-    if (!pack) return res.status(404).json({ error: "No encontramos la solicitud." });
+    if (!pack || !canSeeSchool(req, pack.schoolSlug)) return res.status(404).json({ error: "No encontramos la solicitud." });
     const name = `${pack.reference || req.params.id}-documentos.zip`;
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
@@ -304,7 +350,7 @@ app.get("/api/admin/solicitudes/:id/zip", requireAdmin, (req, res, next) => {
 
 app.get("/api/admin/solicitudes/:id/archivos/:fileId", requireAdmin, (req, res) => {
   const file = fileForAdmin(req.params.id, Number(req.params.fileId));
-  if (!file) return res.status(404).json({ error: "No encontramos el archivo." });
+  if (!file || !canSeeSchool(req, file.schoolSlug)) return res.status(404).json({ error: "No encontramos el archivo." });
   const ascii = file.original_name.replace(/[^\x20-\x7E]+/g, "_");
   res.setHeader("Content-Type", file.mime);
   res.setHeader(
@@ -315,25 +361,37 @@ app.get("/api/admin/solicitudes/:id/archivos/:fileId", requireAdmin, (req, res) 
 });
 
 app.post("/api/admin/enlaces", requireAdmin, (req, res, next) => {
-  try { res.json({ link: ensureFamilyLink(req.body?.school, req.body?.variant) }); } catch (error) { next(error); }
+  try {
+    if (!canSeeSchool(req, req.body?.school)) throw httpError(403, "No tiene acceso a este colegio.");
+    res.json({ link: ensureFamilyLink(req.body?.school, req.body?.variant) });
+  } catch (error) { next(error); }
 });
 app.post("/api/admin/enlaces/:code/regenerar", requireAdmin, (req, res, next) => {
-  try { res.json({ links: regenerateFamilyLink(req.params.code) }); } catch (error) { next(error); }
+  try {
+    const link = listFamilyLinks().find((item) => item.code === req.params.code);
+    if (!link || !canSeeSchool(req, link.school)) return res.status(404).json({ error: "No encontramos ese enlace." });
+    res.json({ links: regenerateFamilyLink(req.params.code) });
+  } catch (error) { next(error); }
 });
-app.get("/api/admin/config", requireAdmin, (req, res) => res.json(adminConfig()));
+app.get("/api/admin/config", requireAdmin, (req, res) => res.json(scopedConfig(req)));
 app.put("/api/admin/general", requireAdmin, (req, res, next) => {
-  try { res.json(saveGeneral(req.body)); } catch (error) { next(error); }
+  try { saveGeneral(req.body); res.json(scopedConfig(req)); } catch (error) { next(error); }
 });
 app.put("/api/admin/colegios/:slug", requireAdmin, (req, res, next) => {
-  try { res.json(saveSchool(req.params.slug, req.body)); } catch (error) { next(error); }
+  try {
+    if (!canSeeSchool(req, req.params.slug)) throw httpError(403, "No tiene acceso a este colegio.");
+    saveSchool(req.params.slug, req.body);
+    res.json(scopedConfig(req));
+  } catch (error) { next(error); }
 });
 app.post("/api/admin/colegios/:slug/logo", requireAdmin, logoUpload.single("logo"), (req, res, next) => {
   try {
+    if (!canSeeSchool(req, req.params.slug)) throw httpError(403, "No tiene acceso a este colegio.");
     if (!req.file) return res.status(400).json({ error: "Seleccione un logo." });
     const publicPath = `/api/publico/logo/${req.params.slug}`;
     saveLogo(req.params.slug, req.file.path, publicPath);
     fs.writeFileSync(path.join(UPLOAD_DIR, "logos", `${req.params.slug}.path`), req.file.path);
-    res.json(adminConfig());
+    res.json(scopedConfig(req));
   } catch (error) {
     next(error);
   }
@@ -346,16 +404,24 @@ app.get("/api/publico/logo/:slug", (req, res) => {
   res.sendFile(path.resolve(filePath));
 });
 app.put("/api/admin/precios", requireAdmin, (req, res, next) => {
-  try { res.json(savePrices(req.body)); } catch (error) { next(error); }
+  try {
+    if (!canSeeSchool(req, req.body?.school)) throw httpError(403, "No tiene acceso a este colegio.");
+    savePrices(req.body);
+    res.json(scopedConfig(req));
+  } catch (error) { next(error); }
 });
 app.put("/api/admin/metricas", requireAdmin, (req, res, next) => {
-  try { res.json(saveMetrics(req.body)); } catch (error) { next(error); }
+  try {
+    if (!canSeeSchool(req, req.body?.school)) throw httpError(403, "No tiene acceso a este colegio.");
+    saveMetrics(req.body);
+    res.json(scopedConfig(req));
+  } catch (error) { next(error); }
 });
 app.put("/api/admin/conceptos", requireAdmin, (req, res, next) => {
-  try { res.json(saveConcepts(req.body)); } catch (error) { next(error); }
+  try { saveConcepts(req.body); res.json(scopedConfig(req)); } catch (error) { next(error); }
 });
 app.put("/api/admin/correo", requireAdmin, (req, res, next) => {
-  try { res.json(saveMailSettings(req.body)); } catch (error) { next(error); }
+  try { saveMailSettings(req.body); res.json(scopedConfig(req)); } catch (error) { next(error); }
 });
 
 app.get("/", (req, res) => {

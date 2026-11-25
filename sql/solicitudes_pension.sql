@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(160) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   created_at VARCHAR(40) NOT NULL,
+  school_slug VARCHAR(40) NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_email (email)
 ) ENGINE=InnoDB;
