@@ -1,4 +1,4 @@
-name: Desplegar al servidor
+name: Revisar servidor
 
 on:
   push:
@@ -9,55 +9,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  revisar:
     runs-on: ubuntu-latest
     steps:
-      - name: Obtener el código
-        uses: actions/checkout@v4
-
-      - name: Preparar la carpeta en el servidor
+      - name: Leer el servidor sin modificarlo
         uses: appleboy/ssh-action@v1.2.2
-        env:
-          APP_DIR: ${{ secrets.VPS_APP_DIR != '' && secrets.VPS_APP_DIR || '/var/www/bracekts-system' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT != '' && secrets.VPS_PORT || 22 }}
-          envs: APP_DIR
-          script: mkdir -p "$APP_DIR"
-
-      - name: Copiar la aplicación
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT != '' && secrets.VPS_PORT || 22 }}
-          source: "package.json,package-lock.json,ecosystem.config.cjs,server,public,sql,scripts"
-          target: ${{ secrets.VPS_APP_DIR != '' && secrets.VPS_APP_DIR || '/var/www/bracekts-system' }}
-          overwrite: true
-
-      - name: Instalar dependencias y reiniciar
-        uses: appleboy/ssh-action@v1.2.2
-        env:
-          APP_DIR: ${{ secrets.VPS_APP_DIR != '' && secrets.VPS_APP_DIR || '/var/www/bracekts-system' }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
-          TRUST_PROXY: ${{ secrets.TRUST_PROXY }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT != '' && secrets.VPS_PORT || 22 }}
-          envs: APP_DIR,SESSION_SECRET,ADMIN_NAME,ADMIN_EMAIL,ADMIN_PASSWORD,DB_USER,DB_PASSWORD,DB_NAME,COOKIE_SECURE,TRUST_PROXY
           script: |
-            cd "$APP_DIR"
-            sed -i 's/\r$//' scripts/remote-deploy.sh
-            bash scripts/remote-deploy.sh
+            set +e
+            echo "=== identidad ==="
+            whoami
+            hostname
+            . /etc/os-release
+            echo "$PRETTY_NAME"
+            echo "=== disco ==="
+            df -h /
+            echo "=== puertos ==="
+            ss -tlnp 2>/dev/null || netstat -tlnp
+            echo "=== programas ==="
+            command -v nginx && nginx -v
+            command -v apache2 && apache2 -v
+            command -v caddy && caddy version
+            command -v node && node -v
+            command -v npm && npm -v
+            command -v pm2 && pm2 -v
+            command -v docker && docker --version
+            echo "=== sitios web ==="
+            ls -la /etc/nginx/sites-enabled 2>/dev/null
+            ls -la /etc/nginx/conf.d 2>/dev/null
+            ls -la /etc/apache2/sites-enabled 2>/dev/null
+            echo "=== server_name ==="
+            grep -R --include='*.conf' -n "server_name" /etc/nginx /etc/apache2 /etc/caddy 2>/dev/null
+            echo "=== www ==="
+            ls -la /var/www 2>/dev/null
+            echo "=== carpeta prevista ==="
+            if [ -e /var/www/bracekts-system ]; then ls -la /var/www/bracekts-system; else echo "no existe /var/www/bracekts-system"; fi
+            echo "=== certificados ==="
+            ls /etc/letsencrypt/live 2>/dev/null
+            echo "=== pm2 ==="
+            pm2 ls 2>/dev/null
+            echo "=== docker ==="
+            docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null
+            echo "=== fin ==="
