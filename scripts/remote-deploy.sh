@@ -17,8 +17,9 @@ ADMIN_NAME=${ADMIN_NAME:-Administrador}
 ADMIN_EMAIL=${ADMIN_EMAIL}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 LOCAL_HINT=0
-COOKIE_SECURE=${COOKIE_SECURE:-0}
-TRUST_PROXY=${TRUST_PROXY:-0}
+COOKIE_SECURE=${COOKIE_SECURE:-1}
+TRUST_PROXY=${TRUST_PROXY:-1}
+HOST=127.0.0.1
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=${DB_USER:-supuser}
@@ -27,13 +28,8 @@ DB_NAME=${DB_NAME:-solicitudes_pension}
 EOF
 
 if ! command -v node >/dev/null 2>&1; then
-  if ! command -v apt-get >/dev/null 2>&1; then
-    echo "Node.js no está instalado y este servidor no usa apt." >&2
-    exit 1
-  fi
-  export DEBIAN_FRONTEND=noninteractive
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt-get install -y nodejs
+  echo "Node.js no está instalado. No se cambia el Node del sistema." >&2
+  exit 1
 fi
 
 npm ci --omit=dev
@@ -43,5 +39,9 @@ if ! command -v pm2 >/dev/null 2>&1; then
   npm install -g pm2
 fi
 
-pm2 startOrReload ecosystem.config.cjs --update-env
+if pm2 describe solicitudes-pension >/dev/null 2>&1; then
+  pm2 reload solicitudes-pension --update-env
+else
+  pm2 start ecosystem.config.cjs --update-env
+fi
 pm2 save

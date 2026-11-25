@@ -374,7 +374,8 @@ app.use((error, req, res, next) => {
 });
 
 const port = Number(process.env.PORT) || 3080;
-app.listen(port, () => {
+const host = process.env.HOST || "0.0.0.0";
+app.listen(port, host, () => {
   console.log(`Formulario: http://localhost:${port}`);
   console.log(`Administración: http://localhost:${port}/admin`);
 });

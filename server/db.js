@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { DatabaseSync } from "node:sqlite";
 import bcrypt from "bcryptjs";
 import { openDatabase } from "./mysql-sync.js";
 import {
@@ -493,12 +492,13 @@ function ensureFamilyLinks() {
   setSetting("family_links", JSON.stringify(links));
 }
 
-function importLocalFamilyLinks() {
+async function importLocalFamilyLinks() {
   if (familyLinks().length) return;
   const sqlitePath = path.join(DATA_DIR, "solicitudes.db");
   if (!fs.existsSync(sqlitePath)) return;
   let local;
   try {
+    const { DatabaseSync } = await import("node:sqlite");
     local = new DatabaseSync(sqlitePath, { readOnly: true });
     const row = local.prepare("SELECT value FROM settings WHERE key = ?").get("family_links");
     if (row?.value) setSetting("family_links", row.value);
@@ -509,7 +509,7 @@ function importLocalFamilyLinks() {
   }
 }
 
-importLocalFamilyLinks();
+await importLocalFamilyLinks();
 ensureFamilyLinks();
 
 export function listFamilyLinks() {
