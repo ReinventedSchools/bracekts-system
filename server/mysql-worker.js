@@ -27,6 +27,30 @@ function finish(message) {
   Atomics.notify(flag, 0);
 }
 
+function connectionLost(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  return [
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "EPIPE",
+    "ETIMEDOUT",
+    "PROTOCOL_CONNECTION_LOST",
+    "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR",
+    "PROTOCOL_ENQUEUE_AFTER_QUIT"
+  ].includes(code) || /closed state|Connection lost|server has gone away/i.test(message);
+}
+
+async function query(sql, params) {
+  try {
+    return await connection.query(sql, params);
+  } catch (error) {
+    if (!connectionLost(error)) throw error;
+    await connect();
+    return connection.query(sql, params);
+  }
+}
+
 parentPort.on("message", async (message) => {
   if (message.type === "init") {
     port = message.port;
@@ -39,7 +63,7 @@ parentPort.on("message", async (message) => {
     return;
   }
   try {
-    const [result] = await connection.query(message.sql, message.params);
+    const [result] = await query(message.sql, message.params);
     const header = Array.isArray(result) ? null : result;
     finish({
       ok: true,
