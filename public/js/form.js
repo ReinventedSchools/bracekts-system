@@ -136,9 +136,40 @@
     var on = V(k) === true;
     return '<div class="' + (ERR[k] ? "bad" : "") + '"><div class="decl"><label class="check"><input type="checkbox" data-k="' + k + '" data-chk="1"' + (on ? " checked" : "") + "><span>" + text + "</span></label></div>" + em(k) + "</div>";
   }
+  function sectionForMessage(message) {
+    var text = String(message || "");
+    if (/autorización de datos/i.test(text)) return 0;
+    if (/estudiante|Plan al que|veracidad/i.test(text)) return 1;
+    if (/gasto/i.test(text)) return 4;
+    if (/Adjunte|motivo por el que no tiene|documento/i.test(text)) return 5;
+    if (/Firma/i.test(text)) return 6;
+    if (/representante|correo|celular|WhatsApp|RUC|dependencia|hogar/i.test(text)) return 2;
+    return -1;
+  }
+  function reviewIssues() {
+    var items = pending();
+    var known = {};
+    items.forEach(function (item) { known[item.m] = true; });
+    (S.serverErrors || []).forEach(function (message) {
+      if (!message || known[message] || message === "No se pudo completar la operación.") return;
+      known[message] = true;
+      items.push({ s: sectionForMessage(message), m: message });
+    });
+    return items;
+  }
+  function issueList(items) {
+    if (!items.length) return "";
+    return '<div class="pend" role="alert"><b>Corrija estos campos para poder enviar (' + items.length + ")</b><ol>" +
+      items.map(function (item) {
+        var where = item.s >= 0 ? ' <span class="hint" style="display:inline">Sección ' + (item.s + 1) + "</span>" : "";
+        var label = item.s >= 0 ? '<button type="button" data-go="' + item.s + '">' + esc(item.m) + "</button>" : esc(item.m);
+        return "<li>" + label + where + "</li>";
+      }).join("") + "</ol></div>";
+  }
   function secErr() {
     var n = Object.keys(ERR).length;
-    var extra = (S.serverErrors || []).length ? '<div class="secerr" role="alert"><b>No se pudo enviar.</b><br>' + S.serverErrors.map(esc).join("<br>") + "</div>" : "";
+    var generic = (S.serverErrors || []).filter(function (message) { return message === "No se pudo completar la operación."; });
+    var extra = S.step === 6 && reviewIssues().length ? "" : ((S.serverErrors || []).length ? '<div class="secerr" role="alert"><b>No se pudo enviar.</b><br>' + (generic.length && (S.serverErrors || []).length === generic.length ? "No se pudo completar la operación." : S.serverErrors.map(esc).join("<br>")) + "</div>" : "");
     return extra + (n ? '<div class="secerr" role="alert"><b>Revise ' + (n === 1 ? "el campo marcado" : "los " + n + " campos marcados") + ".</b> No es posible continuar hasta completarlos.</div>" : "");
   }
   function secHead(i, intro) {
@@ -328,14 +359,14 @@
   }
   function pending() { var l = []; for (var i = 0; i < 6; i++) validate(i).forEach(function (x) { l.push({ s: i, m: x.m }); }); return l; }
   function vRev() {
-    var pe = pending(), keys = docKeys();
+    var keys = docKeys();
     var up = keys.filter(function (k) { return dStat(k) === "ok"; }).length, na = keys.filter(function (k) { return dStat(k) === "na"; }).length;
     var st = function (i, rows) { return '<div class="stmt"><div class="stmt-h"><b>' + (i + 1) + ". " + STEPS[i] + '</b><button type="button" data-go="' + i + '">Modificar</button></div><dl>' + rows.map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl></div>"; };
     var stu = S.stu.filter(function (x) { return x.n.trim(); }).map(function (x) { return esc(x.n) + (x.g ? ", " + esc(x.g) : ""); }).join("<br>") || "Sin registrar";
     var today = new Date().toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "numeric", month: "long", year: "numeric" });
     var sign = function (k, whoName) { return '<div class="sign"><div class="line" id="sp-' + k + '" aria-hidden="true">' + esc(V(k)) + '</div><div class="cap">' + whoName + " · Firma electrónica · " + today + "</div>" + field(k, "Escriba su nombre completo para firmar") + "</div>"; };
     return secHead(6, "Revise la información antes de enviarla. Puede modificar cualquier sección.") +
-      (pe.length ? '<div class="pend" role="alert"><b>Información pendiente (' + pe.length + ")</b><ol>" + pe.slice(0, 10).map(function (x) { return '<li><button type="button" data-go="' + x.s + '">' + esc(x.m) + '</button> <span class="hint" style="display:inline">Sección ' + (x.s + 1) + "</span></li>"; }).join("") + (pe.length > 10 ? "<li>y " + (pe.length - 10) + " más</li>" : "") + "</ol></div>" : "") +
+      issueList(reviewIssues()) +
       st(1, [["Plan al que postula", full() ? (V("plan") ? "Plan " + esc(V("plan")) : "—") : "Plan B"], ["Estudiantes", stu]]) +
       st(2, [["Representante 1", esc(V("r1_name")) || "—"], ["Contacto", (esc(V("r1_mail")) + (phoneText(1) ? "<br>" + esc(phoneText(1)) : "")) || "—"], ["Representante 2", r2full() ? (esc(V("r2_name")) || "—") : (V("r2s") === "absent" ? "No se completa: " + esc(V("r2_why") || "sin explicación") : "Sin registrar")]]) +
       st(3, reps().map(function (r) { return ["Ingresos de " + esc(who(r)) + ", mensual", money(incT(r) / 12)]; }).concat([["Total del hogar, mensual", money(incH() / 12)], ["Total del hogar, 12 meses", money(incH())]])) +
@@ -521,7 +552,13 @@
       });
       var data = await res.json();
       S.busy = false;
-      if (!res.ok) { S.serverErrors = data.details || [data.error || "No se pudo enviar"]; render(false); return; }
+      if (!res.ok) {
+        S.serverErrors = Array.isArray(data.details) && data.details.length ? data.details : [data.error || "No se pudo enviar"];
+        render(false);
+        var box = $(".pend") || $(".secerr");
+        if (box) box.scrollIntoView({ block: "start", behavior: "smooth" });
+        return;
+      }
       S.status = data.status;
       S.reference = data.reference;
       S.submittedAtLabel = data.submittedAtLabel;
