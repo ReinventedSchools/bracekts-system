@@ -21,9 +21,9 @@ export const DEFAULT_DOCS = [
   { id: "renta", t: "Declaración de impuesto a la renta", p: "Último año fiscal", h: "Se descarga de SRI en línea.", cond: "all", full: 0 },
   { id: "iva", t: "Declaraciones de IVA del RUC personal", p: "Últimos 12 meses", h: "Se descargan de SRI en línea.", cond: "rucp", full: 0 },
   { id: "ivae", t: "Declaraciones de IVA de la empresa propia", p: "Últimos 12 meses", h: "Se descargan de SRI en línea con el RUC de la empresa.", cond: "ruce", full: 0 },
-  { id: "banco", t: "Estados de cuenta bancarios", p: "Últimos 3 meses", h: "De todas las cuentas.", cond: "all", full: 1 },
+  { id: "banco", t: "Estados de cuenta bancarios", p: "Últimos 3 meses", h: "De todas las cuentas.", cond: "all", full: 1, fileRequired: 1 },
   { id: "tc", t: "Estados de cuenta de tarjetas de crédito", p: "Últimos 3 meses", h: "De todas las tarjetas.", cond: "all", full: 1 },
-  { id: "buro", t: "Certificado crediticio", p: "A la fecha", h: "Equifax u otra central de riesgo.", cond: "all", full: 1 },
+  { id: "buro", t: "Certificado crediticio", p: "A la fecha", h: "Equifax u otra central de riesgo.", cond: "all", full: 1, fileRequired: 1 },
   { id: "veh", t: "Matrícula vehicular", p: "Vigente", h: "Una por cada vehículo propio.", cond: "veh", full: 0 }
 ];
 

@@ -31,6 +31,13 @@ function mobileOk(value) {
   return /^9\d{8}$/.test(digits);
 }
 
+function fileRequired(doc) {
+  const title = String(doc.t || "").toLowerCase();
+  return doc.fileRequired === 1 || doc.id === "banco" || doc.id === "buro"
+    || title.includes("estados de cuenta bancarios")
+    || title.includes("certificado crediticio");
+}
+
 function docsFor(rep, documents, variant) {
   return documents.filter((doc) => {
     if (doc.full && variant !== "full") return false;
@@ -113,8 +120,14 @@ export function validateApplication(applicationId) {
     if (rep.slot === 2 && d.r2s !== "full") continue;
     for (const doc of docsFor(rep, documents, app.variant)) {
       const key = `${rep.slot}_${doc.id}`;
-      const marked = na[key] && na[key].on;
+      const marked = Boolean(na[key] && na[key].on);
+      const why = String(na[key]?.why || "").trim();
+      if (fileRequired(doc)) {
+        if (!fileCount[key]) errors.push(`Adjunte: ${doc.t}.`);
+        continue;
+      }
       if (!fileCount[key] && !marked) errors.push(`Adjunte o marque “No lo tengo”: ${doc.t}.`);
+      else if (marked && !why) errors.push(`Escriba el motivo por el que no tiene: ${doc.t}.`);
     }
   }
 

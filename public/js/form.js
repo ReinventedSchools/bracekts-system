@@ -212,7 +212,7 @@
       '<div class="clause"><div><h4>Quiénes lo completan</h4><p>Se completa con la información de ambos representantes del estudiante: madre, padre o representante legal. Si los padres están separados o divorciados, se requiere la información de ambos. Solo se omite a un representante si no participa de ninguna forma en la vida ni en los gastos del estudiante.</p></div></div>' +
       '<div class="clause"><div><h4>Asignación</h4><p>La familia postula y el colegio asigna. Tras la evaluación, el colegio puede asignar el plan postulado, uno de precio mayor o determinar que corresponde el plan A. Postular a un plan no implica admisión. El plan asignado rige por tres años lectivos.</p></div></div>' +
       '<div class="clause"><div><h4>Información que se declara</h4><p>Datos de los representantes, ingresos del hogar y gastos del hogar proyectados para los próximos 12 meses. Los montos pueden ingresarse de forma mensual o anual.</p></div></div>' +
-      '<div class="clause"><div><h4>Documentos solicitados</h4><p>De cada representante, en PDF o fotografía legible. El formulario pide solo los que corresponden según sus respuestas. Si no tiene alguno, lo indica y puede enviar igual.</p>' + docsTable + "</div></div>" +
+      '<div class="clause"><div><h4>Documentos solicitados</h4><p>De cada representante, en PDF o fotografía legible. El formulario pide solo los que corresponden según sus respuestas. Si no tiene alguno, lo indica y escribe el motivo. Los estados de cuenta bancarios y el certificado crediticio son obligatorios.</p>' + docsTable + "</div></div>" +
       '<div class="clause"><div><h4>Expediente completo</h4><p>Solo se analizan expedientes completos y los plazos corren desde la recepción de la documentación completa. El colegio puede solicitar aclaraciones o documentos adicionales si la información es inconsistente.</p></div></div>' +
       '<div class="clause"><div><h4>Plazos de respuesta</h4><p>' + esc(whenText()) + "</p></div></div>" +
       '<div class="clause"><div><h4>Confidencialidad</h4><p>Solo tienen acceso la Gerencia Administrativa y Financiera y el Comité de Admisiones. Los expedientes se conservan durante la vigencia del plan y un año adicional; los de postulaciones no admitidas, seis meses.</p></div></div>' +
@@ -295,7 +295,19 @@
     });
   }
   function docKeys() { var k = []; reps().forEach(function (r) { docsFor(r).forEach(function (d) { k.push(r + "_" + d.id); }); }); return k; }
-  function dStat(key) { if ((S.files[key] || []).length) return "ok"; if ((S.na[key] || {}).on) return "na"; return "miss"; }
+  function docOf(key) { return docs().filter(function (d) { return d.id === String(key).slice(2); })[0]; }
+  function allowsNa(doc) {
+    if (!doc) return true;
+    var title = String(doc.t || "").toLowerCase();
+    if (doc.fileRequired || doc.id === "banco" || doc.id === "buro") return false;
+    if (title.indexOf("estados de cuenta bancarios") >= 0 || title.indexOf("certificado crediticio") >= 0) return false;
+    return true;
+  }
+  function dStat(key) {
+    if ((S.files[key] || []).length) return "ok";
+    if (allowsNa(docOf(key)) && (S.na[key] || {}).on) return "na";
+    return "miss";
+  }
   function vDoc() {
     var h = "";
     reps().forEach(function (r, ri) {
@@ -305,14 +317,14 @@
           var stTxt = st === "ok" ? fs.length + (fs.length > 1 ? " archivos" : " archivo") : st === "na" ? "No lo tiene" : "Pendiente";
           return '<tr class="' + (ERR["d" + key] ? "bad" : "") + '" data-drop="' + key + '"><td>' + (i + 1) + "</td><td><b style=\"font-weight:600\">" + esc(d.t) + '</b><div class="hint">' + esc(d.p) + ". " + esc(d.h) + "</div>" +
             (fs.length ? '<ul class="flist">' + fs.map(function (f, j) { return "<li><span>" + esc(f.name) + " · " + Math.max(1, Math.round(f.size / 1024)) + ' KB</span><button type="button" class="x" style="padding:0" data-rmf="' + f.id + '" data-key="' + key + '" data-i="' + j + '">Quitar</button></li>'; }).join("") + "</ul>" : "") +
-            (st === "na" ? '<label class="sr" for="nw-' + key + '">Motivo</label><input class="in naw" id="nw-' + key + '" data-naw="' + key + '" placeholder="Motivo (opcional)" value="' + esc(na.why || "") + '">' : "") +
+            (st === "na" ? '<label class="sr" for="nw-' + key + '">Motivo</label><input class="in naw" id="nw-' + key + '" data-naw="' + key + '" placeholder="Motivo (obligatorio)" required value="' + esc(na.why || "") + '">' : "") +
             (ERR["d" + key] ? '<div class="errmsg">' + esc(ERR["d" + key]) + "</div>" : "") + "</td>" +
             '<td><span class="st ' + (st === "ok" ? "ok" : st === "na" ? "na" : "miss") + '">' + stTxt + "</span></td>" +
             '<td class="act">' + (st === "na" ? "" : '<label class="btn-o">Adjuntar<input type="file" multiple accept=".pdf,image/jpeg,image/png,image/webp" data-file="' + key + '" aria-label="Adjuntar ' + esc(d.t) + '"></label>') +
-            (fs.length ? "" : '<button type="button" class="linkbtn" data-natog="' + key + '">' + (st === "na" ? "Adjuntar en su lugar" : "No lo tengo") + "</button>") + "</td></tr>";
+            (fs.length || !allowsNa(d) ? "" : '<button type="button" class="linkbtn" data-natog="' + key + '">' + (st === "na" ? "Adjuntar en su lugar" : "No lo tengo") + "</button>") + "</td></tr>";
         }).join("") + "</tbody></table></div>";
     });
-    return secHead(5, "Solo se piden los documentos que corresponden según lo que indicó en Representantes. Adjunte cada uno o marque “No lo tengo”.") + '<p class="note wide">Formatos: PDF, JPG, PNG o WEBP, hasta 15 MB por archivo. Puede adjuntar varios archivos por documento. Los archivos quedan guardados con la solicitud.</p>' + h;
+    return secHead(5, "Solo se piden los documentos que corresponden según lo que indicó en Representantes. Adjunte cada uno. Si no lo tiene, márquelo y escriba el motivo. Los estados de cuenta bancarios y el certificado crediticio son obligatorios.") + '<p class="note wide">Formatos: PDF, JPG, PNG o WEBP, hasta 15 MB por archivo. Puede adjuntar varios archivos por documento. Los archivos quedan guardados con la solicitud.</p>' + h;
   }
   function pending() { var l = []; for (var i = 0; i < 6; i++) validate(i).forEach(function (x) { l.push({ s: i, m: x.m }); }); return l; }
   function vRev() {
@@ -389,10 +401,15 @@
       if (!r2full() || V("home")) for (var h = 1; h <= homes(); h++) if (!expT(h)) e.push({ k: "h" + h, m: "Registre al menos un gasto" + (homes() > 1 ? " del hogar de " + who(h) : "") + "." });
     }
     if (i === 5) docKeys().forEach(function (k) {
-      if (dStat(k) === "miss") {
-        var d = docs().filter(function (x) { return x.id === k.slice(2); })[0];
-        e.push({ k: "d" + k, m: "Adjunte o marque “No lo tengo”: " + (d ? d.t : "documento") + (r2full() ? " (" + who(+k.charAt(0)) + ")" : "") + "." });
+      var d = docOf(k);
+      var name = (d ? d.t : "documento") + (r2full() ? " (" + who(+k.charAt(0)) + ")" : "");
+      var st = dStat(k);
+      if (!allowsNa(d)) {
+        if (st !== "ok") e.push({ k: "d" + k, m: "Adjunte: " + name + "." });
+        return;
       }
+      if (st === "miss") e.push({ k: "d" + k, m: "Adjunte o marque “No lo tengo”: " + name + "." });
+      if (st === "na" && !String((S.na[k] || {}).why || "").trim()) e.push({ k: "d" + k, m: "Escriba el motivo por el que no tiene: " + name + "." });
     });
     if (i === 6) { need("sig1", "Firma del representante 1."); if (r2full()) need("sig2", "Firma del representante 2."); }
     return e;
@@ -568,7 +585,18 @@
     var si = t.getAttribute("data-stu");
     if (si != null) { S.stu[+si][t.getAttribute("data-p")] = t.value; clr(t, (t.getAttribute("data-p") === "n" ? "stu" : "stug") + si); save(); }
     var nw = t.getAttribute("data-naw");
-    if (nw) { S.na[nw] = S.na[nw] || {}; S.na[nw].why = t.value; save(); }
+    if (nw) {
+      S.na[nw] = S.na[nw] || {};
+      S.na[nw].why = t.value;
+      if (String(t.value || "").trim()) {
+        delete ERR["d" + nw];
+        var row = t.closest("tr");
+        if (row) row.classList.remove("bad");
+        var msg = row && row.querySelector(".errmsg");
+        if (msg) msg.remove();
+      }
+      save();
+    }
   });
   main.addEventListener("change", async function (ev) {
     var t = ev.target, k = t.getAttribute("data-k");
